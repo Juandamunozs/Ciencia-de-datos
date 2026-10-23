@@ -1,0 +1,8 @@
+﻿# Entorno virtual de Python
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Jupyter
+data/
