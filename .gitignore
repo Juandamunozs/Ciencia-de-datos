@@ -1,8 +1,13 @@
 ﻿# Entorno virtual de Python
-venv/
+.venv/
 
 # Jupyter
 .ipynb_checkpoints/
 
 # Jupyter
-data/
+procesados/
+
+#temperatura conteos
+temperatura/
+laboratorio_2/data/temp_parciales/conteos.json
+laboratorio_2/data/temp_parciales/agregado_2023.csv

@@ -1,0 +1,4 @@
+codigoestacion,codigosensor,nombreestacion,departamento,municipio,descripcionsensor,unidadmedida,latitud,longitud,anio,mes,t_media,t_min,t_max,n_lecturas
+0057015010,0068,MALPELO - DIMAR,VALLE DEL CAUCA,BUENAVENTURA,Temp Aire 2 m,°C,4.096,-81.609,2002,9,2.2000000000000000,2.2,2.2,1
+0057015010,0068,MALPELO - DIMAR,VALLE DEL CAUCA,BUENAVENTURA,Temp Aire 2 m,°C,4.096,-81.609,2002,10,1.3166666666666667,0.1,2.4,6
+0057015010,0068,MALPELO - DIMAR,VALLE DEL CAUCA,BUENAVENTURA,Temp Aire 2 m,°C,4.096,-81.609,2002,11,5.4000000000000000,0.6,10.2,2
