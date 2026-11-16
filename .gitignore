@@ -11,3 +11,8 @@ procesados/
 temperatura/
 laboratorio_2/data/temp_parciales/conteos.json
 laboratorio_2/data/temp_parciales/agregado_2023.csv
+
+# Imagenes
+laboratorio_2/data/
+laboratorio_3/figuras/
+laboratorio_3/__pycache__/

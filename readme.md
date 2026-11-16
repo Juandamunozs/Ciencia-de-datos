@@ -29,3 +29,6 @@ python -m jupyter notebook
 
 ### 8. Desactivar el entorno virtual
 deactivate
+
+### 9. Ejecutar streamlit
+python -m streamlit run app.py
