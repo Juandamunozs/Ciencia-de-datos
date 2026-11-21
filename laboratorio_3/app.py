@@ -249,12 +249,6 @@ n_parc = int(sint["Veredicto"].fillna("").str.startswith("Respaldo parcial").sum
 n_sin = len(sint) - n_resp - n_parc
 inconcluso = (n_resp + n_parc) == 0
 
-# with st.sidebar.expander("⬇️ Descargas"):
-#     st.download_button("Resumen ejecutivo (HTML)", R.a_html(P), file_name="resumen_ejecutivo.html", mime="text/html", width="stretch")
-#     st.download_button("Resumen ejecutivo (Markdown)", R.a_markdown(P), file_name="resumen_ejecutivo.md", mime="text/markdown", width="stretch")
-#     st.download_button("Verificación de cifras (CSV)", P["cifras"].to_csv(index=False).encode("utf-8-sig"), file_name="verificacion_cifras.csv", mime="text/csv", width="stretch")
-#     st.caption("Para el PDF de 2 páginas: abrir el HTML en el navegador, Imprimir y Guardar como PDF (A4).")
-
 def mae(prefijo):
     return float(met.loc[met["Modelo"].str.startswith(prefijo), "MAE prueba"].iloc[0])
 
@@ -306,8 +300,13 @@ if pagina == PAGINAS[0]:
         lectura_b1 = "El modelo con temperatura **se equivoca menos** que repetir el año anterior."
     else:
         lectura_b1 = "Repetir lo del año anterior resultó **igual o mejor** que nuestro modelo."
-    lectura_b2 = ("Agregar la temperatura **mejoró** la predicción frente al mismo modelo sin ella." if M2 < B2
-                  else "Agregar la temperatura **no mejoró** la predicción frente al mismo modelo sin ella.")
+    if f_todo["IC95 inferior"] > 0:
+        lectura_b2 = "Agregar la temperatura **mejoró de forma comprobable** la predicción frente al mismo modelo sin ella."
+    elif M2 > B2:
+        lectura_b2 = (f"Agregar la temperatura **no mejoró** la predicción: el modelo con temperatura se equivocó un poco **más** "
+                      f"({R.pct(M2)} frente a {R.pct(B2)} del modelo sin ella).")
+    else:
+        lectura_b2 = (f"Agregar la temperatura bajó el error solo {R.pct(1 - M2 / B2, 1)}, una diferencia **que no se distingue del ruido**.")
     st.markdown(f"- {lectura_b1}\n- {lectura_b2}\n- Esto es un hallazgo válido: un resultado que no confirma una idea también aporta información.")
 
     # Recomendaciones y cuidados (ya calculadas en el resumen ejecutivo)
@@ -363,8 +362,7 @@ elif pagina == PAGINAS[1]:
         else:
             st.info("Seleccione al menos un cultivo.")
     else:
-        st.caption("Para ver el rendimiento en toneladas por hectárea, agregue `rendimiento_t_ha` y `t_media` a `cols_base` en la sección 11 del notebook y vuelva a ejecutarlo. "
-                   "Mientras tanto se muestra el rendimiento **relativo**.")
+        st.caption("El rendimiento en toneladas por hectárea no está en los archivos del tablero; se muestra el rendimiento **relativo**.")
     rel = base.groupby(["anio", "grupo"], as_index=False)["y"].mean()
     leyenda("Figura", "Rendimiento relativo a lo normal por tipo de cultivo (0 = lo normal del periodo de entrenamiento; 0,10 = 10 % por encima de la mediana del cultivo)")
     lr = alt.Chart(rel).mark_line(point=True).encode(x=ejex, y=alt.Y("y:Q", title="Rendimiento relativo medio"), color=alt.Color("grupo:N", title=None),
@@ -484,7 +482,7 @@ elif pagina == PAGINAS[2]:
     for col, (n_, t_, d_) in zip([u1, u2, u3], [
             ("1", "Navegue", "Use el menú lateral o los botones ← → al final de cada sección. Si quiere el detalle técnico, siga el orden 1 a 10."),
             ("2", "Explore", "Las figuras son interactivas: pase el cursor sobre una barra o un punto para ver el valor exacto. Las secciones 5 y 8 tienen filtros."),
-            ("3", "Consulte y descargue", "El glosario y las descargas (resumen ejecutivo y tabla de verificación de cifras) están en la barra lateral.")]):
+            ("3", "Consulte el glosario", "El glosario rápido y el origen de los datos están en la barra lateral.")]):
         col.markdown(f'<div class="paso"><div class="n">{n_}</div><div class="t">{t_}</div><div class="d">{d_}</div></div>', unsafe_allow_html=True)
 
     seccion(4, "Estructura del documento")
@@ -617,7 +615,7 @@ elif pagina == PAGINAS[5]:
     tabla(pd.DataFrame([
         ("Relaciones no lineales e interacciones", "Las captura sin especificarlas", "Solo lineales"),
         ("Faltantes (t_anom_prev, y_prev)", "Los maneja de forma nativa", "Requiere imputación"),
-        ("Pocos datos y cola larga", "Funciona con regularización", "Estable, difícil de sobreajustar"),
+        ("Pocos datos y cola larga", "Funciona con regularización y se optimiza el error absoluto, igual que la métrica reportada", "Estable, difícil de sobreajustar"),
         ("Interpretación", "Permutación y SHAP", "Coeficientes directos")],
         columns=["Criterio", "HistGradientBoostingRegressor (principal)", "Ridge (contraste lineal)"]))
     st.markdown("Se ajustan ambos con la **misma cantidad de búsqueda de hiperparámetros** (elegidos por MAE en validación), para que la comparación sea justa. "
@@ -656,11 +654,11 @@ elif pagina == PAGINAS[6]:
     st.markdown("Una diferencia puntual **no basta**: con miles de registros una mejora diminuta puede ser ruido. La siguiente sección cuantifica la incertidumbre.")
 
     seccion(2, "Aporte marginal de la temperatura con intervalos de confianza")
-    st.markdown("Diferencia de error absoluto registro a registro (positiva = el modelo con más información acierta más), con intervalo de confianza del 95 % "
+    st.markdown("Diferencia de error absoluto registro a registro (positiva = el modelo con más información acierta más; negativa = acierta menos), con intervalo de confianza del 95 % "
                 "mediante *bootstrap* por municipio-año (2 000 remuestreos). **Un intervalo que contiene el 0 indica que la diferencia no se distingue del ruido.**")
     Bc = B.assign(Resultado=B["Lectura"].map({"mejora distinguible del ruido": "Mejora comprobable", "empeora": "Empeora"}).fillna("No se distingue del ruido"))
     esc = alt.Scale(domain=["Mejora comprobable", "No se distingue del ruido", "Empeora"], range=[VERDE, GRIS, ROJO])
-    leyenda("Figura", "Reducción del error (Δ MAE) con IC 95 % · a la derecha del 0 el modelo con más información mejora")
+    leyenda("Figura", "Reducción del error (Δ MAE) con IC 95 % · a la derecha del 0 el modelo con más información mejora; a la izquierda, empeora")
     ey = alt.Y("Comparación:N", title=None, axis=alt.Axis(labelLimit=420))
     rg = alt.Chart(Bc).mark_rule(strokeWidth=4).encode(y=ey, x=alt.X("IC95 inferior:Q", title="Δ MAE (referencia − modelo)"), x2="IC95 superior:Q",
                                                        color=alt.Color("Resultado:N", scale=esc, title=None))
@@ -672,12 +670,15 @@ elif pagina == PAGINAS[6]:
     tabla(B, {"Δ MAE (ref − modelo)": "{:+.5f}", "IC95 inferior": "{:+.5f}", "IC95 superior": "{:+.5f}"})
     fuente("`predicciones_prueba.csv`, remuestreo por municipio-año (semilla 42).")
     cota = float(f_anio["IC95 superior"])
+    dm = float(f_anio["Δ MAE (ref − modelo)"])
+    sentido_err = "**aumenta**" if dm < 0 else "**disminuye**"
+    tono_5 = "ok" if f_anio["Lectura"].startswith("mejora") else "mal" if f_anio["Lectura"].startswith("empeora") else "warn"
     caja("Lectura de la comparación central (M2 frente a M1)",
-         f"Saber cómo fue el año frente a lo normal cambia el error en **{R.signed(f_anio['Δ MAE (ref − modelo)'], 5)}** "
-         f"(IC 95 %: {R.signed(f_anio['IC95 inferior'], 5)} a {R.signed(f_anio['IC95 superior'], 5)}): *{f_anio['Lectura']}*. "
+         f"Saber cómo fue el año frente a lo normal hace que el error {sentido_err} en **{R.num(abs(dm), 5)}** de MAE "
+         f"(Δ MAE {R.signed(dm, 5)}; IC 95 %: {R.signed(f_anio['IC95 inferior'], 5)} a {R.signed(f_anio['IC95 superior'], 5)}): *{f_anio['Lectura']}*. "
          f"Aun en el escenario más favorable compatible con los datos, la mejora no superaría **{R.num(max(cota, 0), 5)}** de MAE "
          f"(≈ {R.pct(max(cota, 0) / M1, 1)} del error de M1). Esta cota superior es un argumento cuantitativo: acota el tamaño del efecto que estos datos permitirían detectar.",
-         "ok" if f_anio["Lectura"].startswith("mejora") else "warn")
+         tono_5)
 
     seccion(3, "Predicho frente a real")
     c1, c2, c3 = st.columns(3)
@@ -945,10 +946,6 @@ elif pagina == PAGINAS[11]:
     st.markdown("- **Solo temperatura:** el rendimiento también depende de lluvia, riego, plagas, tecnología y precios.\n"
                 "- **Periodos distintos:** cultivos transitorios hasta 2022 y permanentes hasta 2023 (heredado de la Parte 1).\n"
                 "- **Correlación no es causalidad:** ni la importancia ni SHAP demuestran que un año cálido *cause* menor rendimiento.")
-    seccion(4, "Uso de modelos de lenguaje")
-    st.markdown("El resumen ejecutivo y este tablero **no usan un modelo de lenguaje como fuente de datos**: las cifras se leen de los CSV del notebook y cada una queda registrada "
-                "en la tabla de verificación de cifras (descargable desde la barra lateral). Si se usa un modelo de lenguaje para pulir la redacción, cada número debe verificarse contra esa tabla.")
-
 
 #  navegación inferior
 st.divider()

@@ -20,7 +20,7 @@ python -m pip install --upgrade pip
 ### 5. Instalar las dependencias
 pip install -r requirements.txt
 
-### 6. Registrar las versiones instaladas
+### 6. Registrar las versiones instaladas (No necesario si ya existe el archivo requirements.txt)
 Si agregan o modifican dependencias y deseas actualizar el archivo:
 pip freeze > requirements.txt
 
@@ -30,5 +30,5 @@ python -m jupyter notebook
 ### 8. Desactivar el entorno virtual
 deactivate
 
-### 9. Ejecutar streamlit
+### 9. Ejecutar streamlit (El notebook ya lo hace)
 python -m streamlit run app.py
