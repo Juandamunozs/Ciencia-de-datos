@@ -84,6 +84,12 @@ def encabezado(num, titulo, subtitulo=""):
     st.markdown(f'<div class="titulo"><h1>{num}. {titulo}</h1></div><div class="subt">{subtitulo}</div>', unsafe_allow_html=True)
 
 
+def encabezado_libre(titulo, subtitulo=""):
+    st.markdown('<div class="banda"><b>Universidad Santiago de Cali · Facultad de Ingeniería</b>'
+                '<span>Ciencia de Datos con Python (IGS38) · Caso de estudio, Parte 3</span></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="titulo"><h1>{titulo}</h1></div><div class="subt">{subtitulo}</div>', unsafe_allow_html=True)
+
+
 def seccion(sub, titulo):
     st.markdown(f'<div class="sec"><span>{CONT["pg"]}.{sub}</span>{titulo}</div>', unsafe_allow_html=True)
 
@@ -176,7 +182,7 @@ def forest_tabla(d, est, x_titulo, pie):
 
 #  datos
 CARPETA_DEFECTO = R.encontrar_carpeta() or "data/procesados/tablero"
-PAGINAS = ["1. Presentación", "2. Planteamiento", "3. Datos y fuentes", "4. Metodología", "5. Resultados del modelo",
+PAGINAS = ["Inicio", "Pregunta general · Evolución y temperatura", "1. Presentación", "2. Planteamiento", "3. Datos y fuentes", "4. Metodología", "5. Resultados del modelo",
            "6. Contraste de hipótesis", "7. Interpretación del modelo", "8. Análisis exploratorio",
            "9. Discusión y conclusiones", "10. Limitaciones y validez"]
 if "pagina" not in st.session_state:
@@ -191,7 +197,7 @@ def _ir(delta):
 st.sidebar.markdown("### Contenido")
 pagina = st.sidebar.radio("Sección", PAGINAS, key="pagina", label_visibility="collapsed")
 idx_pag = PAGINAS.index(pagina)
-st.sidebar.progress((idx_pag + 1) / len(PAGINAS), text=f"Sección {idx_pag + 1} de {len(PAGINAS)}")
+st.sidebar.progress(idx_pag / (len(PAGINAS) - 1), text=["Inicio", "Pregunta general"][idx_pag] if idx_pag < 2 else f"Sección {idx_pag - 1} de {len(PAGINAS) - 2}")
 st.sidebar.divider()
 with st.sidebar.expander("📖 Glosario rápido"):
     st.markdown("**MAE:** error absoluto medio; cuánto se equivoca el modelo en promedio (menor es mejor).  \n"
@@ -243,12 +249,11 @@ n_parc = int(sint["Veredicto"].fillna("").str.startswith("Respaldo parcial").sum
 n_sin = len(sint) - n_resp - n_parc
 inconcluso = (n_resp + n_parc) == 0
 
-with st.sidebar.expander("⬇️ Descargas"):
-    st.download_button("Resumen ejecutivo (HTML)", R.a_html(P), file_name="resumen_ejecutivo.html", mime="text/html", width="stretch")
-    st.download_button("Resumen ejecutivo (Markdown)", R.a_markdown(P), file_name="resumen_ejecutivo.md", mime="text/markdown", width="stretch")
-    st.download_button("Verificación de cifras (CSV)", P["cifras"].to_csv(index=False).encode("utf-8-sig"), file_name="verificacion_cifras.csv", mime="text/csv", width="stretch")
-    st.caption("Para el PDF de 2 páginas: abrir el HTML en el navegador, Imprimir y Guardar como PDF (A4).")
-
+# with st.sidebar.expander("⬇️ Descargas"):
+#     st.download_button("Resumen ejecutivo (HTML)", R.a_html(P), file_name="resumen_ejecutivo.html", mime="text/html", width="stretch")
+#     st.download_button("Resumen ejecutivo (Markdown)", R.a_markdown(P), file_name="resumen_ejecutivo.md", mime="text/markdown", width="stretch")
+#     st.download_button("Verificación de cifras (CSV)", P["cifras"].to_csv(index=False).encode("utf-8-sig"), file_name="verificacion_cifras.csv", mime="text/csv", width="stretch")
+#     st.caption("Para el PDF de 2 páginas: abrir el HTML en el navegador, Imprimir y Guardar como PDF (A4).")
 
 def mae(prefijo):
     return float(met.loc[met["Modelo"].str.startswith(prefijo), "MAE prueba"].iloc[0])
@@ -263,8 +268,176 @@ EN_CLARO = {"H1": ("t_anomalia", "Un año más cálido que lo normal de su munic
             "H4": ("t_anomalia_prev", "La temperatura del año anterior también se asocia con el rendimiento, sobre todo en cultivos permanentes."),
             "H5": ("amplitud_anomalia", "Una amplitud térmica mayor que la normal se asocia con un menor rendimiento.")}
 
-#   1. PRESENTACIÓN
+#   INICIO · RESUMEN PARA CUALQUIER PERSONA
 if pagina == PAGINAS[0]:
+    CONT.update(pg=0, t=0, f=0)
+    st.markdown('<div class="portada"><div class="u">Valle del Cauca · Datos abiertos (datos.gov.co)</div>'
+                '<h1>¿Los años más calurosos de lo normal afectan lo que producen los cultivos?</h1>'
+                '<div class="s">Informe</div></div>', unsafe_allow_html=True)
+
+    # Respuesta corta, calculada desde los resultados
+    if inconcluso:
+        caja("La respuesta corta", "**Con estos datos no pudimos comprobar que el calor fuera de lo normal explique la producción.** "
+             "No quiere decir que no influya: significa que la información disponible no alcanza para afirmarlo con seguridad.", "warn")
+    else:
+        caja("La respuesta corta", f"**Sí encontramos señales** de que el calor fuera de lo normal se relaciona con la producción "
+             f"({n_resp} de {len(sint)} ideas respaldadas y {n_parc} con respaldo parcial). Son relaciones, no pruebas de causa.", "ok")
+
+    # Tres cifras grandes
+    c1, c2, c3 = st.columns(3)
+    kpi(c1, "Error del modelo con temperatura", R.pct(M2), "de equivocación sobre el rendimiento típico (menor es mejor)", "info")
+    kpi(c2, "Error si solo repetimos el año anterior", R.pct(B1), "referencia muy simple", "gris")
+    kpi(c3, "Ideas con respaldo", f"{n_resp + n_parc} de {len(sint)}", "hipótesis sobre el efecto de la temperatura", "ok" if not inconcluso else "warn")
+
+    # Un solo gráfico
+    st.markdown("#### ¿Qué tanto se equivoca cada forma de predecir?")
+    sencillo = pd.DataFrame({"Forma de predecir": ["Adivinar el promedio", "Repetir el año anterior", "Modelo sin temperatura", "Modelo con temperatura"],
+                             "Error": [B0, B1, B2, M2]})
+    orden = sencillo.sort_values("Error")["Forma de predecir"].tolist()
+    bs = alt.Chart(sencillo).encode(y=alt.Y("Forma de predecir:N", sort=orden, title=None, axis=alt.Axis(labelLimit=300, labelFontSize=13)),
+                                     x=alt.X("Error:Q", title="Error (menor es mejor)"))
+    st.altair_chart((bs.mark_bar().encode(color=alt.condition(alt.datum["Forma de predecir"] == "Modelo con temperatura", alt.value(AZUL), alt.value(GRIS)))
+                     + bs.mark_text(align="left", dx=4, fontSize=13).encode(text=alt.Text("Error:Q", format=".2f"))).properties(height=190), width="stretch")
+    st.caption("Cada barra mide qué tanto se aleja la predicción del rendimiento real en años que el modelo no había visto.")
+
+    # Qué significa
+    st.markdown("#### ¿Qué significa esto?")
+    if M2 < B1:
+        lectura_b1 = "El modelo con temperatura **se equivoca menos** que repetir el año anterior."
+    else:
+        lectura_b1 = "Repetir lo del año anterior resultó **igual o mejor** que nuestro modelo."
+    lectura_b2 = ("Agregar la temperatura **mejoró** la predicción frente al mismo modelo sin ella." if M2 < B2
+                  else "Agregar la temperatura **no mejoró** la predicción frente al mismo modelo sin ella.")
+    st.markdown(f"- {lectura_b1}\n- {lectura_b2}\n- Esto es un hallazgo válido: un resultado que no confirma una idea también aporta información.")
+
+    # Recomendaciones y cuidados (ya calculadas en el resumen ejecutivo)
+    r1, r2 = st.columns(2)
+    with r1:
+        st.markdown("#### Qué recomendamos")
+        st.markdown("\n".join(f"{i}. {limpio(r)}" for i, r in enumerate(P["recs"], 1)))
+    with r2:
+        st.markdown("#### Qué tener en cuenta")
+        st.markdown("\n".join(f"- **{limpio(t)}.** {limpio(d)}" for t, d in P["limites"]))
+
+    st.info("¿Quiere ver cómo cambiaron el rendimiento y la temperatura año a año? Vaya a «Pregunta general». ¿Quiere ver cómo se hizo? Las secciones 1 a 10 del menú explican los datos, el método y las pruebas.")
+
+#   PREGUNTA GENERAL · EVOLUCIÓN Y TEMPERATURA
+elif pagina == PAGINAS[1]:
+    CONT.update(pg="G", t=0, f=0)
+    encabezado_libre("Pregunta general: evolución del rendimiento y relación con la temperatura",
+                     "La pregunta de la Parte 2, respondida con los datos de los municipios que tienen estación del IDEAM")
+    caja("Pregunta general (Parte 2)", "¿Cómo ha evolucionado el rendimiento de los principales cultivos del Valle del Cauca a lo largo del tiempo y qué relación "
+         "existe entre sus variaciones y la temperatura registrada en los municipios donde se producen?")
+    tiene_rend = "rendimiento_t_ha" in base.columns and base["rendimiento_t_ha"].notna().any()
+    tiene_t = "t_media" in base.columns and base["t_media"].notna().any()
+    MIN_N = 30
+    CLIMA = {0: "Más frío", 1: "Templado", 2: "Más cálido"}
+
+    def rho(a, b):
+        ok = a.notna() & b.notna()
+        return float(a[ok].corr(b[ok], method="spearman")) if ok.sum() >= 5 else np.nan
+
+    def fuerza(r):
+        if np.isnan(r):
+            return "no calculable"
+        a = abs(r)
+        return "muy débil" if a < .1 else "débil" if a < .3 else "moderada" if a < .5 else "fuerte"
+
+    corte = alt.Chart(pd.DataFrame({"x": [ANIO_TR + .5]})).mark_rule(color=NAVY, strokeDash=[4, 4]).encode(x="x:Q")
+    cero = alt.Chart(pd.DataFrame({"y": [0]})).mark_rule(color=NAVY, strokeDash=[2, 3]).encode(y="y:Q")
+    ejex = alt.X("anio:Q", title="Año", axis=alt.Axis(format="d", tickMinStep=1))
+
+    # ---- 1. Rendimiento
+    seccion(1, "¿Cómo ha evolucionado el rendimiento?")
+    if tiene_rend:
+        top = base.groupby("cultivo").size().sort_values(ascending=False).index.tolist()
+        sel = st.multiselect("Cultivos a mostrar", sorted(base["cultivo"].unique()), default=top[:4], key="pg_cultivos")
+        dd = base[base["cultivo"].isin(sel)]
+        if len(dd):
+            ser = dd.groupby(["anio", "cultivo"], as_index=False)["rendimiento_t_ha"].median()
+            leyenda("Figura", "Rendimiento mediano por año (toneladas por hectárea) en los municipios con estación; la línea punteada marca el fin del periodo de entrenamiento")
+            ln = alt.Chart(ser).mark_line(point=True).encode(x=ejex, y=alt.Y("rendimiento_t_ha:Q", title="Rendimiento mediano (t/ha)"),
+                                                             color=alt.Color("cultivo:N", title=None),
+                                                             tooltip=["cultivo", "anio", alt.Tooltip("rendimiento_t_ha:Q", format=".2f")])
+            st.altair_chart((ln + corte).properties(height=320), width="stretch")
+        else:
+            st.info("Seleccione al menos un cultivo.")
+    else:
+        st.caption("Para ver el rendimiento en toneladas por hectárea, agregue `rendimiento_t_ha` y `t_media` a `cols_base` en la sección 11 del notebook y vuelva a ejecutarlo. "
+                   "Mientras tanto se muestra el rendimiento **relativo**.")
+    rel = base.groupby(["anio", "grupo"], as_index=False)["y"].mean()
+    leyenda("Figura", "Rendimiento relativo a lo normal por tipo de cultivo (0 = lo normal del periodo de entrenamiento; 0,10 = 10 % por encima de la mediana del cultivo)")
+    lr = alt.Chart(rel).mark_line(point=True).encode(x=ejex, y=alt.Y("y:Q", title="Rendimiento relativo medio"), color=alt.Color("grupo:N", title=None),
+                                                     tooltip=["grupo", "anio", alt.Tooltip("y:Q", format="+.3f")])
+    st.altair_chart((lr + cero + corte).properties(height=300), width="stretch")
+    st.caption("Antes de la línea punteada el promedio queda cerca de 0 por construcción (es el periodo con el que se definió lo normal). La información nueva está después de la línea.")
+
+    # ---- 2. Temperatura
+    seccion(2, "¿Cómo ha evolucionado la temperatura?")
+    temp_anual = base.drop_duplicates(["id_municipio", "anio"]).groupby("anio", as_index=False).agg(t_anom=("t_anom", "mean"))
+    temp_anual["Año"] = np.where(temp_anual["t_anom"] >= 0, "Más cálido que lo normal", "Más frío que lo normal")
+    leyenda("Figura", "Anomalía media de temperatura por año (°C respecto a lo normal de cada municipio)")
+    st.altair_chart((alt.Chart(temp_anual).mark_bar().encode(
+        x=ejex, y=alt.Y("t_anom:Q", title="Anomalía media (°C)"),
+        color=alt.Color("Año:N", scale=alt.Scale(domain=["Más cálido que lo normal", "Más frío que lo normal"], range=[ROJO, AZUL]), title=None),
+        tooltip=["anio", alt.Tooltip("t_anom:Q", format="+.2f")]) + cero + corte).properties(height=260), width="stretch")
+    if tiene_t:
+        tm = base.drop_duplicates(["id_municipio", "anio"]).groupby("anio", as_index=False)["t_media"].mean()
+        leyenda("Figura", "Temperatura media anual (°C) de los municipios con estación")
+        st.altair_chart((alt.Chart(tm).mark_line(point=True, color=ROJO).encode(x=ejex, y=alt.Y("t_media:Q", title="Temperatura media (°C)", scale=alt.Scale(zero=False)),
+                                                                              tooltip=["anio", alt.Tooltip("t_media:Q", format=".2f")]) + corte).properties(height=240), width="stretch")
+
+    # ---- 3. Relación
+    seccion(3, "¿Qué relación hay entre ambas?")
+    anual = base.groupby("anio", as_index=False).agg(y=("y", "mean"), t_anom=("t_anom", "mean"))
+    rho_anual = rho(anual["t_anom"], anual["y"])
+    rho_glob = rho(base["t_anom"], base["y"])
+    k1, k2, k3 = st.columns(3)
+    kpi(k1, "Correlación, registro a registro", f"{rho_glob:+.2f}".replace(".", ","), f"{fuerza(rho_glob)} · {R.miles(len(base))} registros", "info")
+    kpi(k2, "Correlación, promedios anuales", f"{rho_anual:+.2f}".replace(".", ","), f"{fuerza(rho_anual)} · solo {len(anual)} años", "gris")
+    kpi(k3, "Cómo leerla", "−1 a +1", "0 = sin relación; negativa = año cálido, menor rendimiento", "gris")
+    st.write("")
+    leyenda("Figura", "Cada punto es un año: anomalía media de temperatura frente a rendimiento relativo medio")
+    pa = alt.Chart(anual).encode(x=alt.X("t_anom:Q", title="Anomalía media de temperatura (°C)"), y=alt.Y("y:Q", title="Rendimiento relativo medio"))
+    st.altair_chart((pa.mark_circle(size=90, color=AZUL) + pa.mark_text(dy=-12, fontSize=11, color="#333").encode(text=alt.Text("anio:Q", format="d"))
+                     + pa.transform_regression("t_anom", "y").mark_line(color=NAVY, strokeDash=[5, 4])).properties(height=320), width="stretch")
+    st.caption("Con pocos años, un solo punto puede cambiar la línea; por eso este gráfico orienta pero no concluye.")
+
+    filas = []
+    for g in sorted(base["grupo"].unique()):
+        for c, nom in CLIMA.items():
+            sub = base[(base["grupo"] == g) & (base["clima_ord"] == c)]
+            filas.append({"Tipo de cultivo": g, "Clima del municipio": nom, "n": len(sub), "ρ": rho(sub["t_anom"], sub["y"]) if len(sub) >= MIN_N else np.nan})
+    hm = pd.DataFrame(filas)
+    leyenda("Figura", f"Correlación entre anomalía de temperatura y rendimiento relativo, por tipo de cultivo y clima (solo grupos con {MIN_N} registros o más)")
+    hb = alt.Chart(hm.dropna(subset=["ρ"])).encode(x=alt.X("Clima del municipio:N", sort=list(CLIMA.values()), title=None, axis=alt.Axis(labelAngle=0)), y=alt.Y("Tipo de cultivo:N", title=None))
+    st.altair_chart((hb.mark_rect(stroke="white", strokeWidth=3).encode(color=alt.Color("ρ:Q", scale=alt.Scale(domain=[-.4, 0, .4], range=[ROJO, "#FFFFFF", AZUL], clamp=True), title="ρ"),
+                                                                       tooltip=["Tipo de cultivo", "Clima del municipio", "n", alt.Tooltip("ρ:Q", format="+.3f")])
+                     + hb.mark_text(fontSize=14, color="#1E2A25").encode(text=alt.Text("ρ:Q", format="+.2f"))).properties(height=150), width="stretch")
+    st.caption("Rojo: a más calor, menor rendimiento. Azul: a más calor, mayor rendimiento. Blanco: sin relación visible.")
+    with st.expander("Tabla con el número de registros de cada grupo"):
+        tabla(hm, {"n": "{:,.0f}", "ρ": "{:+.3f}"})
+
+    # ---- 4. Respuesta
+    seccion(4, "Respuesta a la pregunta general")
+    a_ = anual.sort_values("anio")
+    if len(a_) >= 6:
+        ini, fin = float(a_["y"].head(3).mean()), float(a_["y"].tail(3).mean())
+        dif = fin - ini
+        tend = "**subió**" if dif > .02 else "**bajó**" if dif < -.02 else "**se mantuvo estable**"
+        txt_evol = (f"**Evolución.** Entre {int(a_['anio'].min())} y {int(a_['anio'].max())}, el rendimiento relativo medio {tend}: pasó de {R.signed(ini, 3)} en los primeros "
+                    f"tres años a {R.signed(fin, 3)} en los últimos tres (0 = lo normal de entrenamiento).")
+    else:
+        txt_evol = "**Evolución.** Hay pocos años para describir una tendencia."
+    sentido = "negativa (años más cálidos, menor rendimiento)" if rho_glob < 0 else "positiva (años más cálidos, mayor rendimiento)"
+    txt_rel = (f"**Relación.** La asociación entre la anomalía de temperatura y el rendimiento relativo es **{fuerza(rho_glob)}** (ρ = {R.signed(rho_glob, 2)}), de sentido {sentido}. "
+               + ("Las pruebas formales de la sección 6 no logran distinguirla del ruido." if inconcluso else "Las pruebas formales de la sección 6 respaldan parte de las hipótesis."))
+    caja("En palabras sencillas", f"{txt_evol}\n\n{txt_rel}", "warn" if inconcluso or abs(rho_glob) < .3 else "ok")
+    caja("Con cuidado", "Es una **asociación, no una causa**: otros factores (lluvia, riego, plagas, precios) cambian al mismo tiempo. Además son datos de **municipios con estación**, "
+         "no de fincas, y no representan a todo el Valle. El detalle de las pruebas está en las secciones 5 y 6.", "info")
+
+#   1. PRESENTACIÓN
+elif pagina == PAGINAS[2]:
     CONT.update(pg=1, t=0, f=0)
     st.markdown(f"""<div class="portada"><div class="u">Universidad Santiago de Cali · Facultad de Ingeniería</div>
 <h1>Temperatura y rendimiento de los cultivos del Valle del Cauca</h1>
@@ -309,7 +482,7 @@ if pagina == PAGINAS[0]:
     seccion(3, "Cómo usar este tablero")
     u1, u2, u3 = st.columns(3)
     for col, (n_, t_, d_) in zip([u1, u2, u3], [
-            ("1", "Navegue", "Use el menú lateral o los botones ← → al final de cada sección. Se recomienda seguir el orden 1 a 12."),
+            ("1", "Navegue", "Use el menú lateral o los botones ← → al final de cada sección. Si quiere el detalle técnico, siga el orden 1 a 10."),
             ("2", "Explore", "Las figuras son interactivas: pase el cursor sobre una barra o un punto para ver el valor exacto. Las secciones 5 y 8 tienen filtros."),
             ("3", "Consulte y descargue", "El glosario y las descargas (resumen ejecutivo y tabla de verificación de cifras) están en la barra lateral.")]):
         col.markdown(f'<div class="paso"><div class="n">{n_}</div><div class="t">{t_}</div><div class="d">{d_}</div></div>', unsafe_allow_html=True)
@@ -326,13 +499,13 @@ if pagina == PAGINAS[0]:
         "Exploración interactiva de la anomalía térmica frente al rendimiento y perfil climático de los municipios (RA4).",
         "Respuesta a la pregunta, lectura de un resultado concluyente o no, aportes y trabajo futuro (RA6).",
         "Amenazas a la validez: sesgo de cobertura, falacia ecológica, correlación frente a causalidad (RA6)."]
-    _sec = PAGINAS[1:]
+    _sec = PAGINAS[3:]
     _n = max(len(_sec), len(_cont))
     _sec, _cont = _sec + [""] * (_n - len(_sec)), _cont + [""] * (_n - len(_cont))
     tabla(pd.DataFrame({"Sección": _sec, "Contenido": _cont}), alto=420)
 
 #   2. PLANTEAMIENTO
-elif pagina == PAGINAS[1]:
+elif pagina == PAGINAS[3]:
     encabezado(2, "Planteamiento del problema", "Pregunta de investigación, objetivos e hipótesis")
     idea("Se busca saber si conocer cuánto se desvió la temperatura de lo normal ayuda a predecir el rendimiento en años que el modelo no vio. Son **cinco hipótesis**, cada una con **dos pruebas** independientes.")
     seccion(1, "Pregunta de investigación")
@@ -365,7 +538,7 @@ elif pagina == PAGINAS[1]:
          "Esta última categoría no demuestra que el efecto no exista: indica que estos datos no logran distinguirlo del ruido.", "warn")
 
 #   3. DATOS
-elif pagina == PAGINAS[2]:
+elif pagina == PAGINAS[4]:
     encabezado(3, "Datos y fuentes", "Origen, integración, cobertura y partición temporal")
     idea(f"Se cruzan los rendimientos (Gobernación) con la temperatura (IDEAM) mediante el código DIVIPOLA. Solo se modelan **{n_mun} municipios** con estación; el modelo se entrena con años hasta {ANIO_TR} y se prueba en {A0}-{A1}.")
     seccion(1, "Fuentes de datos y linaje")
@@ -415,7 +588,7 @@ elif pagina == PAGINAS[2]:
     caja("Alcance", f"Los resultados describen a los **{n_mun} municipios con estación del IDEAM y con historia suficiente**. El modelo no se extrapola al resto del Valle.", "warn")
 
 #   4. METODOLOGÍA
-elif pagina == PAGINAS[3]:
+elif pagina == PAGINAS[5]:
     encabezado(4, "Metodología", "Diseño experimental y justificación de cada decisión")
     idea("Todos los modelos usan el mismo algoritmo y solo cambia la información disponible (sin IDEAM, clima normal, clima normal más anomalías del año). Así se **aísla** el aporte de la temperatura.")
     seccion(1, "Variable objetivo")
@@ -458,7 +631,7 @@ elif pagina == PAGINAS[3]:
          "que no supera a la línea base es **creíble**, y eso es más valioso que una mejora aparente que no sobreviviría en años futuros.", "ok")
 
 #   5. RESULTADOS DEL MODELO
-elif pagina == PAGINAS[4]:
+elif pagina == PAGINAS[6]:
     encabezado(5, "Resultados del modelo", f"Desempeño en años no vistos ({A0}-{A1}), n = {R.miles(n_test)} registros")
     idea(f"En años no vistos, el modelo con clima completo (M2) tiene un error de **{R.num(M2)}**; repetir el año anterior (B1), **{R.num(B1)}**, y el mismo modelo sin IDEAM (B2), **{R.num(B2)}**. Lo decisivo es si la diferencia entre M2 y M1 supera el ruido (sección 5.2).")
     seccion(1, "Desempeño frente a las líneas base")
@@ -559,7 +732,7 @@ elif pagina == PAGINAS[4]:
         st.caption("Los archivos `metricas_clasificacion.csv` y `vif_multicolinealidad.csv` no están en la carpeta; se generan en la sección 11 del notebook.")
 
 #   6. HIPÓTESIS
-elif pagina == PAGINAS[5]:
+elif pagina == PAGINAS[7]:
     encabezado(6, "Contraste de hipótesis H1 a H5", "Cada hipótesis se probó dos veces: con una prueba estadística y con el modelo")
     idea(f"**{n_resp}** hipótesis respaldadas por ambas pruebas, **{n_parc}** con respaldo parcial y **{n_sin}** sin respaldo con estos datos. «Sin respaldo» no equivale a «falsa».")
     seccion(1, "Síntesis")
@@ -614,7 +787,7 @@ elif pagina == PAGINAS[5]:
     st.caption("Con pocos municipios (conglomerados) los errores agrupados son aproximados; los valores p son orientativos.")
 
 #   7. INTERPRETACIÓN
-elif pagina == PAGINAS[6]:
+elif pagina == PAGINAS[8]:
     encabezado(7, "Interpretación del modelo", "Importancia por permutación y valores SHAP sobre el modelo final (M2)")
     idea("La importancia mide cuánto **usa** el modelo cada variable, no cuánto la **causa**. Las barras verdes son las variables derivadas de la temperatura del IDEAM.")
     seccion(1, "Importancia por permutación")
@@ -652,7 +825,7 @@ elif pagina == PAGINAS[6]:
          "parte de su importancia es geografía, no clima del año.", "warn")
 
 #   8. EXPLORADOR
-elif pagina == PAGINAS[7]:
+elif pagina == PAGINAS[9]:
     encabezado(8, "Análisis exploratorio", "Anomalía de temperatura frente a anomalía del rendimiento")
     idea("Cada punto es un cultivo en un municipio y año. Si la nube no muestra una pendiente clara, la temperatura sola no explica las variaciones del rendimiento. Use los filtros para explorar cultivos o municipios concretos.")
     st.markdown("Cada punto es un cultivo en un municipio y año. **Eje X:** desviación de la temperatura respecto a lo normal del municipio. "
@@ -708,7 +881,7 @@ elif pagina == PAGINAS[7]:
             tabla(clus)
 
 #   9. DISCUSIÓN
-elif pagina == PAGINAS[8]:
+elif pagina == PAGINAS[10]:
     encabezado(9, "Discusión y conclusiones", "Respuesta a la pregunta, lectura de los resultados y aportes del trabajo")
     idea("La respuesta a la pregunta de investigación está en el cuadro de la sección 9.1; el resto de la sección explica cómo leerla y qué falta para mejorarla.")
     seccion(1, "Respuesta a la pregunta de investigación")
@@ -754,7 +927,7 @@ elif pagina == PAGINAS[8]:
                 "El estudio establece un punto de partida metodológicamente sólido y delimita con claridad lo que falta para una respuesta definitiva.")
 
 #   10. LIMITACIONES
-elif pagina == PAGINAS[9]:
+elif pagina == PAGINAS[11]:
     encabezado(10, "Limitaciones y amenazas a la validez", "Qué no dice este análisis")
     idea("Qué **no** permite concluir este estudio: cobertura limitada a municipios con estación, datos municipales (no de fincas) y asociación sin causalidad.")
     seccion(1, "Limitaciones exigidas por el caso de estudio")
